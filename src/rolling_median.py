@@ -3,8 +3,6 @@
 import sys
 from datetime import datetime, time
 import json
-import time #FIXME
-
 
 
 def getMedian(lst):
@@ -57,16 +55,13 @@ def writeToOutput(output_file, text):
     """
     with open(output_file, "a") as output:
         output.write(text)
-        #print text #FIXME
 
 
 def main():
 
-    input_path = sys.argv[1] #FIXME
-    output_path = sys.argv[2] #FIXME
+    input_path = sys.argv[1]
+    output_path = sys.argv[2]
 
-#    input_path = "../venmo_input/venmo-trans.txt" #FIXME
-#    output_path = "../venmo_output/output.txt" #FIXME
 
     venmoGraph = {} # Dict representing our graph (key=time value=list of tuples)
     time_list = [] # Keep track of timestamps in graph
@@ -78,17 +73,12 @@ def main():
     open(output_path, "w").close()
         
     with open(input_path) as f:
-    #with open("../venmo_input/venmo-trans.txt") as f:
-    #with open("../data-gen/venmo-trans.txt") as f:#FIXME
-    #with open("../data-gen/test-trans.txt") as f:
         for line in f:
-            #print json.loads(line)
             try:
                 created, target, actor = json.loads(line).values()
                 if not (created and target and actor):
                     raise ValueError("Missing Field")
             except ValueError as e:
-                #print "%s: %s" % (e, line) #FIXME
                 # Completely ignore line and continue if missing
                 # Field or unable to parse json line (Extra data)
                 continue
@@ -100,7 +90,7 @@ def main():
                 writeToOutput(output_path, median)
                 continue
            
-            #FIXME Make algo faster deque/enque
+            
             # Add timestamp to time_list
             i = 0
             length = len(time_list)
@@ -150,16 +140,8 @@ def main():
 
             # Write median to output file
             writeToOutput(output_path, median)
-            #print median
 
 
 if __name__ == '__main__':
     main()
-    #t = timeit.timeit("main()", setup="from __main__ import main", number=100)
 
-
-#NOTES
-# Think about this:
-# key = (from, created); value = to # or maybe a tuple?
-# Don't forget try/except for opening input
-# Clearing output.txt line (as of now, clears if it exists, creates if it doesn't)
