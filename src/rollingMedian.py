@@ -2,7 +2,6 @@
 
 import sys
 from datetime import datetime, time
-from bisect import bisect
 import json
 
 
@@ -51,16 +50,26 @@ def writeToOutput(output_file, text):
     """
     with open(output_file, "a") as output:
         output.write(text + "\n")
-        #print text #FIXME
+
+
+def getLast(sortedList, item):
+    """
+    Get index of last occurring item in a sorted list
+    Example: getLast([5,5,2,2,2,1], 2) --> 4
+    """
+    first = sortedList.index(item)
+    i = first
+    for i in range(first, len(sortedList)-1):
+        if sortedList[i+1] != item:
+            break
+
+    return i
 
 
 def rollingMedian(inFile, outFile):
 
-    # Ovewrite output file
-    open(outFile, "w").close()
-
     degrees = {}
-    degreeList = []
+    degreeList = [] # Keep in reverse sorted order
     times = {} # timestamp: [(edge1), (edge2), ... ]
     edges = {} # (edge): timestamp
     windowMin = 0
@@ -69,7 +78,6 @@ def rollingMedian(inFile, outFile):
 
     with open(inFile) as f:
         for line in f:
-            edgeAdded = True # Track because if False, median remains same #FIXME
             try:
                 created, target, actor = json.loads(line).values()
                 if not (created and target and actor):
@@ -84,7 +92,7 @@ def rollingMedian(inFile, outFile):
             edge = (actor, target) if actor < target else (target, actor)
 
             # If payment out-of-order and outside window,
-            # ignore it, put print the previous median
+            # ignore it, but print the previous median
             if created < windowMin:
                 writeToOutput(outFile, median)
                 continue
@@ -95,15 +103,14 @@ def rollingMedian(inFile, outFile):
                 times.setdefault(created,[]).append(edge)
                 edges[edge] = created
                 for name in edge:
-                    # If name/node doesn't exist, set to 0 before incrementing
-                    degrees.setdefault(name,0)
-                    degrees[name] += 1
-#                    if name not in degrees: #FIXME remove this if/else
-#                        degrees[name] = 1
-#                    else:
-#                        degrees[name] += 1
+                    if name not in degrees:
+                        degrees[name] = 1
+                        degreeList.append(1)
+                    else:
+                        i = degreeList.index(degrees[name])
+                        degreeList[i] += 1
+                        degrees[name] += 1
             else:
-                edgeAdded = False
                 # Update timestamp of existing edge
                 oldTime = edges[edge]
                 times[oldTime].remove(edge)
@@ -123,39 +130,25 @@ def rollingMedian(inFile, outFile):
                         # Evict all edges with this timestamp
                         for e in times[time]:
                             for name in e:
+                                i = getLast(degreeList, degrees[name])
+                                degreeList[i] -= 1
                                 degrees[name] -= 1
                                 if degrees[name] == 0:
+                                    del degreeList[i]
                                     del degrees[name]
                             del edges[e]
                         del times[time]
           
             
-            # If no edge added, median same as last time
-            # FIXME? What about evicted too..
-#            if edgeAdded:
-#                d0 = degrees[edge[0]]
-#                d1 = degrees[edge[1]]
-#                if (d0 > median and d1 > median) or (d0 < median and d1 < median):
-#                    median = getMedian(sorted(degrees.values()))
-                   
-            median = getMedian(sorted(degrees.values()))
+            median = getMedian(degreeList)
             writeToOutput(outFile, median)
 
 
-
 if __name__ == '__main__':
-    start = datetime.now() #FIXME
     input_path = sys.argv[1]
     output_path = sys.argv[2]
     
+    # Ovewrite output file
+    open(outFile, "w").close()
+
     rollingMedian(input_path, output_path)
-    print datetime.now() - start
-
-
-#NOTES
-# Don't forget try/except for opening input
-# Make sure min/max windows and conditionals are exclusive (59 vs 60s)
-# Clearing output.txt line (as of now, clears if it exists, creates if it doesn't)
-# datetime times for 1832/1792 (data-gen) input lines: 
-# 0.205093, 0.200994, 0.207007, 0.207117, 0.206432, 0.210309, 0.211183s
-# Consider adding degreeList
