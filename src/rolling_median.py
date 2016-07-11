@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import os
 import sys
 from datetime import datetime, time
 import json
@@ -7,12 +8,9 @@ import json
 
 def getMedian(lst):
     """
-    Get Median of list of numbers.  Result should have 2 digits 
-    after decimal place (truncate if more than 2)
-    Examples:
-    1 --> 1.00
-    2.0 --> 2.00
-    3.678 --> 3.67
+    Get median of sorted list of numbers.  Result should have exactly
+    2 digits after the decimal place (truncate if more than 2)
+    Examples: 1 --> 1.00, 2.0 --> 2.00, 3.678 --> 3.67
     """
     length = len(lst)
     mid = length / 2
@@ -20,7 +18,6 @@ def getMedian(lst):
         median = (lst[mid] + lst[mid - 1]) / 2.0
     else:
         median = lst[mid]
-
     
    # Result should always have two digits after decimal place 
     median = str(median)
@@ -35,113 +32,146 @@ def getMedian(lst):
     return median
     
 
-
 def cleanTime(raw_str):
     """
-    This fuction converts time format given
-    in json input data to a Unix Timestamp
+    Convert raw time format of the 'created_time' field
+    from the input JSON message to a Unix Timestamp
     
     Example: 2016-04-07T03:33:19Z --> 1459999999
     """
     dt = datetime.strptime(raw_str, "%Y-%m-%dT%H:%M:%SZ")
     # Get unix timestamp UTC in seconds since Epoch (1/1/1970)
     timestamp = (dt - datetime(1970, 1, 1)).total_seconds()
-    return timestamp
+    return int(timestamp)
 
 
 def writeToOutput(output_file, text):
     """
-    Use to write median to output file
+    Append text (the median) to the given output file
     """
     with open(output_file, "a") as output:
-        output.write(text)
+        output.write(text + "\n")
 
 
-def main():
+def getLast(sortedList, item):
+    """
+    Get index of last occurring item in a sorted list
+    Example: getLast([5,5,2,2,2,1], 2) --> 4
+    """
+    first = sortedList.index(item)
+    i = first
+    for i in range(first, len(sortedList)-1):
+        if sortedList[i+1] != item:
+            break
 
-    input_path = sys.argv[1]
-    output_path = sys.argv[2]
+    return i
 
 
-    venmoGraph = {} # Dict representing our graph (key=time value=list of tuples)
-    time_list = [] # Keep track of timestamps in graph
-    current_max = 0 # Graph should only include payments w/ timestamps < current_max - 60s
-    current_min = current_max - 59 # Should be less than 59 of current_max (60s, exclusive)
-    median = 0
+def rollingMedian(inFile, outFile):
 
-    # Ovewrite output file
-    open(output_path, "w").close()
-        
-    with open(input_path) as f:
-        for line in f:
+    edges = {} # (edge): timestamp
+    times = {} # timestamp: [(edge1), (edge2), ... ]
+    degrees = {} # Name: # of degrees
+    degreeList = [] # Keep in reverse sorted order
+    windowMin = 0
+    windowMax = 0
+    median = 0.00
+
+    # Create or ovewrite output file
+    #open(outFile, "w").close()#FIXME
+
+    with open(inFile) as inF, open(outFile, "w") as outF:
+        for line in inF:
             try:
                 created, target, actor = json.loads(line).values()
                 if not (created and target and actor):
                     raise ValueError("Missing Field")
             except ValueError as e:
-                # Completely ignore line and continue if missing
-                # Field or unable to parse json line (Extra data)
+                # Ignore line and continue if missing field
+                # or unable to parse json line (Extra data)
                 continue
-            created = cleanTime(created)
-            
-            # If incoming payment not in 60s window, ignore
-            # But still write previous rolling median
-            if created < current_min:
-                writeToOutput(output_path, median)
+            created = cleanTime(created) # Convert to unix timestamp
+
+            # Undirected graph: order doesn't matter so alphabetize edge
+            edge = (actor, target) if actor < target else (target, actor)
+
+            # If payment out-of-order and outside window,
+            # ignore it, but print the previous median
+            if created < windowMin:
+                outF.write(median+"\n")
+                #writeToOutput(outFile, median) #FIXME?
                 continue
-           
+
+            # Only add edge if two nodes aren't already connected
+            if edge not in edges:
+                # setdefault: append value if key exists, else create list and add
+                times.setdefault(created,[]).append(edge)
+                edges[edge] = created
+                for name in edge:
+                    if name not in degrees:
+                        degrees[name] = 1
+                        degreeList.append(1)
+                    else:
+                        i = degreeList.index(degrees[name])
+                        degreeList[i] += 1
+                        degrees[name] += 1
+            else:
+                # Update timestamp of existing edge
+                oldTime = edges[edge]
+                times[oldTime].remove(edge)
+                times.setdefault(created,[]).append(edge)
+                edges[edge] = created
+
+
+            # If incoming payment is oldest, adjust time window
+            # and prune/evict edges outside window
+            if created > windowMax:
+                windowMax = created
+                windowMin = created - 60
+
+                allTimestamps = times.keys()
+                for t in allTimestamps:
+                    if t < windowMin:
+                        # Evict all edges with this timestamp
+                        for e in times[t]:
+                            for name in e:
+                                i = getLast(degreeList, degrees[name])
+                                degreeList[i] -= 1
+                                degrees[name] -= 1
+                                if degrees[name] == 0:
+                                    del degreeList[i]
+                                    del degrees[name]
+                            del edges[e]
+                        del times[t]
+          
             
-            # Add timestamp to time_list
-            i = 0
-            length = len(time_list)
-            while i < length:
-                if created > time_list[i]:
-                    i += 1
-                else:
-                    break
-
-            if length == 0:
-                time_list.append(created)
-            elif created not in time_list:
-                time_list.insert(i,created)
-           
-
-            if created > current_max:
-                current_max = created
-                current_min = current_max - 59
-
-            edge = (actor, target)
-            # venmoGraph is a dict whose values are lists of edges as tuples --> (actor, target)
-            if created not in venmoGraph:
-                venmoGraph[created] = []
-                
-            venmoGraph[created].append(edge)
+            median = getMedian(degreeList)
+            outF.write(median+"\n")
+            #writeToOutput(outFile, median)#FIXME?
 
 
-            # Remove all edges from less than min
-            for timestamp in time_list:
-                if timestamp < current_min:
-                    time_list.remove(timestamp)
-                    del venmoGraph[timestamp]
-
-            
-            # Get median degree
-            degrees = {} # key:value == name:degrees
-            for timestamp,edges in venmoGraph.iteritems():
-                for edge in edges:
-                    for name in edge:
-                        if name not in degrees:
-                            degrees[name] = 1
-                        else:
-                            degrees[name] += 1
-
-            d = sorted(degrees.values())
-            median = getMedian(d) + "\n"
-
-            # Write median to output file
-            writeToOutput(output_path, median)
+def usage():
+    if sys.argv[0].startswith('./'):
+        print "Usage: %s <path_to_input> <path_to_output>" % sys.argv[0]
+    else:
+        print "Usage: python %s <path_to_input> <path_to_output>" % sys.argv[0]
+    sys.exit(1)
 
 
 if __name__ == '__main__':
-    main()
+    start = datetime.now()#FIXME
+    try:
+        input_path = sys.argv[1]
+        output_path = sys.argv[2]
+    except IndexError as e:
+        usage()
+
+    try:
+        rollingMedian(input_path, output_path)
+    except IOError as e:
+        print e
+        usage()
+
+    print datetime.now() - start
+
 
