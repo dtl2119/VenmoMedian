@@ -60,6 +60,7 @@ def rollingMedian(inFile, outFile):
     open(outFile, "w").close()
 
     degrees = {}
+    degreeList = []
     times = {} # timestamp: [(edge1), (edge2), ... ]
     edges = {} # (edge): timestamp
     windowMin = 0
@@ -68,6 +69,7 @@ def rollingMedian(inFile, outFile):
 
     with open(inFile) as f:
         for line in f:
+            edgeAdded = True # Track because if False, median remains same #FIXME
             try:
                 created, target, actor = json.loads(line).values()
                 if not (created and target and actor):
@@ -77,40 +79,31 @@ def rollingMedian(inFile, outFile):
                 # Field or unable to parse json line (Extra data)
                 continue
             created = cleanTime(created) # Convert to unix timestamp
-            actor = actor.lower()
-            target = target.lower()
 
             # Undirected graph: order doesn't matter so alphabetize edge
             edge = (actor, target) if actor < target else (target, actor)
 
+            # If payment out-of-order and outside window,
+            # ignore it, put print the previous median
             if created < windowMin:
                 writeToOutput(outFile, median)
                 continue
 
-            if any(edges) and (created - 59 > windowMax):
-                # Reset graph if incoming payment creates window
-                # that only includes itself
-                degrees = {edge[0]: 1, edge[1]: 1}
-                times = {created:[edge]}
-                edges = {edge:created}
-                windowMax = created
-                windowMin = windowMax - 59
-                median = "1.00"
-                writeToOutput(outFile, median)
-                continue
-
-            
+            # Only add edge if two nodes aren't already connected
             if edge not in edges:
                 # setdefault: append value if key exists, else create list and add
-                #edges.setdefault(edge,[]).append(created)
-                edges[edge] = created
                 times.setdefault(created,[]).append(edge)
+                edges[edge] = created
                 for name in edge:
-                    if name not in degrees:
-                        degrees[name] = 1
-                    else:
-                        degrees[name] += 1
+                    # If name/node doesn't exist, set to 0 before incrementing
+                    degrees.setdefault(name,0)
+                    degrees[name] += 1
+#                    if name not in degrees: #FIXME remove this if/else
+#                        degrees[name] = 1
+#                    else:
+#                        degrees[name] += 1
             else:
+                edgeAdded = False
                 # Update timestamp of existing edge
                 oldTime = edges[edge]
                 times[oldTime].remove(edge)
@@ -124,11 +117,10 @@ def rollingMedian(inFile, outFile):
                 windowMax = created
                 windowMin = created - 60
 
-                allTimes = times.keys()
-                #for time,edgeList in times.iteritems():
-                for time in allTimes:
+                allTimestamps = times.keys()
+                for time in allTimestamps:
                     if time < windowMin:
-                        #for e in edgeList:
+                        # Evict all edges with this timestamp
                         for e in times[time]:
                             for name in e:
                                 degrees[name] -= 1
@@ -136,8 +128,16 @@ def rollingMedian(inFile, outFile):
                                     del degrees[name]
                             del edges[e]
                         del times[time]
-           
+          
             
+            # If no edge added, median same as last time
+            # FIXME? What about evicted too..
+#            if edgeAdded:
+#                d0 = degrees[edge[0]]
+#                d1 = degrees[edge[1]]
+#                if (d0 > median and d1 > median) or (d0 < median and d1 < median):
+#                    median = getMedian(sorted(degrees.values()))
+                   
             median = getMedian(sorted(degrees.values()))
             writeToOutput(outFile, median)
 
@@ -154,6 +154,8 @@ if __name__ == '__main__':
 
 #NOTES
 # Don't forget try/except for opening input
+# Make sure min/max windows and conditionals are exclusive (59 vs 60s)
 # Clearing output.txt line (as of now, clears if it exists, creates if it doesn't)
 # datetime times for 1832/1792 (data-gen) input lines: 
 # 0.205093, 0.200994, 0.207007, 0.207117, 0.206432, 0.210309, 0.211183s
+# Consider adding degreeList
