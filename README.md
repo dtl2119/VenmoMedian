@@ -20,10 +20,9 @@ I tried to use as few modules as possible, though I did import a few:
 * datetime: to convert the raw time format to a unix timestamp for easy comparisons
 
 ###Executing my program:
-Once in the root of my VenmoMedian repo, you can just run the executable:
+I used **Python 2.7** to write my program, and I was able to run it on OS X El Capitan (v10.11.3) as well as Ubuntu 12.04.  Once in the root of my VenmoMedian repo, you can just run the executable:
 > ./run.sh
 
-&nbsp;
 
 This essentially runs my `rolling_median.py` python script in the src directory, with the input and output files as command line arguments:
 
