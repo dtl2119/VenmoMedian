@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-import os
 import sys
 from datetime import datetime, time
 import json
@@ -69,16 +68,13 @@ def getLast(sortedList, item):
 
 def rollingMedian(inFile, outFile):
 
-    edges = {} # (edge): timestamp
+    edges = {} # (node1, node2): timestamp
     times = {} # timestamp: [(edge1), (edge2), ... ]
-    degrees = {} # Name: # of degrees
-    degreeList = [] # Keep in reverse sorted order
+    degrees = {} # node: # of degrees
+    degreeList = [] # Maintain list in reverse sorted order
     windowMin = 0
     windowMax = 0
     median = 0.00
-
-    # Create or ovewrite output file
-    #open(outFile, "w").close()#FIXME
 
     with open(inFile) as inF, open(outFile, "w") as outF:
         for line in inF:
@@ -99,7 +95,7 @@ def rollingMedian(inFile, outFile):
             # ignore it, but print the previous median
             if created < windowMin:
                 outF.write(median+"\n")
-                #writeToOutput(outFile, median) #FIXME?
+                #writeToOutput(outFile, median)
                 continue
 
             # Only add edge if two nodes aren't already connected
@@ -116,11 +112,13 @@ def rollingMedian(inFile, outFile):
                         degreeList[i] += 1
                         degrees[name] += 1
             else:
-                # Update timestamp of existing edge
+                # Nodes already connected, don't add a new edge
+                # but update timestamp if later than previous
                 oldTime = edges[edge]
-                times[oldTime].remove(edge)
-                times.setdefault(created,[]).append(edge)
-                edges[edge] = created
+                if created > oldTime:
+                    times[oldTime].remove(edge)
+                    times.setdefault(created,[]).append(edge)
+                    edges[edge] = created
 
 
             # If incoming payment is oldest, adjust time window
@@ -147,7 +145,7 @@ def rollingMedian(inFile, outFile):
             
             median = getMedian(degreeList)
             outF.write(median+"\n")
-            #writeToOutput(outFile, median)#FIXME?
+            #writeToOutput(outFile, median)
 
 
 def usage():
@@ -159,7 +157,7 @@ def usage():
 
 
 if __name__ == '__main__':
-    start = datetime.now()#FIXME
+    
     try:
         input_path = sys.argv[1]
         output_path = sys.argv[2]
@@ -172,6 +170,5 @@ if __name__ == '__main__':
         print e
         usage()
 
-    print datetime.now() - start
 
 
