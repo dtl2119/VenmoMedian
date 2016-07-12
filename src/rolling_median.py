@@ -5,32 +5,6 @@ from datetime import datetime, time
 import json
 
 
-def getMedian(lst):
-    """
-    Get median of sorted list of numbers.  Result should have exactly
-    2 digits after the decimal place (truncate if more than 2)
-    Examples: 1 --> 1.00, 2.0 --> 2.00, 3.678 --> 3.67
-    """
-    length = len(lst)
-    mid = length / 2
-    if length % 2 == 0:
-        median = (lst[mid] + lst[mid - 1]) / 2.0
-    else:
-        median = lst[mid]
-    
-   # Result should always have two digits after decimal place 
-    median = str(median)
-    if '.' not in median:
-        median += '.00'
-    afterDec = len(median[median.index('.')+1:]) # Digits after decimal
-    if afterDec == 1:
-        median += '0'
-    elif afterDec > 2:
-        median = median[:median.index('.')+3]
-
-    return median
-    
-
 def cleanTime(raw_str):
     """
     Convert raw time format of the 'created_time' field
@@ -44,13 +18,31 @@ def cleanTime(raw_str):
     return int(timestamp)
 
 
-def writeToOutput(output_file, text):
+def getMedian(lst):
     """
-    Append text (the median) to the given output file
+    Get median of sorted list of numbers.  Result should have exactly
+    2 digits after the decimal place (truncate if more than 2)
+    Examples: 1 --> 1.00, 2.0 --> 2.00, 3.678 --> 3.67
     """
-    with open(output_file, "a") as output:
-        output.write(text + "\n")
+    length = len(lst)
+    mid = length / 2
+    if length % 2 == 0:
+        median = (lst[mid] + lst[mid - 1]) / 2.0
+    else:
+        median = lst[mid]
+    
+    # Result should always have two digits after decimal place 
+    median = str(median)
+    if '.' not in median:
+        median += '.00'
+    afterDec = len(median[median.index('.')+1:])  # Digits after decimal
+    if afterDec == 1:
+        median += '0'
+    elif afterDec > 2:
+        median = median[:median.index('.')+3]
 
+    return median
+    
 
 def getLast(sortedList, item):
     """
@@ -66,12 +58,20 @@ def getLast(sortedList, item):
     return i
 
 
+def writeToOutput(output_file, text):
+    """
+    Append text (the median) to the given output file
+    """
+    with open(output_file, "a") as output:
+        output.write(text + "\n")
+
+
 def rollingMedian(inFile, outFile):
 
-    edges = {} # (node1, node2): timestamp
-    times = {} # timestamp: [(edge1), (edge2), ... ]
-    degrees = {} # node: # of degrees
-    degreeList = [] # Maintain list in reverse sorted order
+    edges = {}  # (node1, node2): timestamp
+    times = {}  # timestamp: [(edge1), (edge2), ... ]
+    degrees = {}  # node: # of degrees
+    degreeList = []  # maintain list in reverse sorted order
     windowMin = 0
     windowMax = 0
     median = 0.00
@@ -86,7 +86,7 @@ def rollingMedian(inFile, outFile):
                 # Ignore line and continue if missing field
                 # or unable to parse json line (Extra data)
                 continue
-            created = cleanTime(created) # Convert to unix timestamp
+            created = cleanTime(created)  # Convert to unix timestamp
 
             # Undirected graph: order doesn't matter so alphabetize edge
             edge = (actor, target) if actor < target else (target, actor)
@@ -95,19 +95,22 @@ def rollingMedian(inFile, outFile):
             # ignore it, but print the previous median
             if created < windowMin:
                 outF.write(median+"\n")
-                #writeToOutput(outFile, median)
+                #writeToOutput(outFile, median)  # Uncomment to append to file
                 continue
 
-            # Only add edge if two nodes aren't already connected
+            # Add edge if two nodes aren't already connected
             if edge not in edges:
-                # setdefault: append value if key exists, else create list and add
-                times.setdefault(created,[]).append(edge)
+                # setdefault: if key doesn't exist, create list then append
+                times.setdefault(created, []).append(edge)
                 edges[edge] = created
                 for name in edge:
                     if name not in degrees:
                         degrees[name] = 1
-                        degreeList.append(1)
+                        degreeList.append(1)  # Reverse sorted, put 1 at end
                     else:
+                        # If node/user exists, find # of degrees user has
+                        # then find 1st occurrence of that # in reverse sorted
+                        # degreeList and increment, keeping it sorted
                         i = degreeList.index(degrees[name])
                         degreeList[i] += 1
                         degrees[name] += 1
@@ -117,9 +120,8 @@ def rollingMedian(inFile, outFile):
                 oldTime = edges[edge]
                 if created > oldTime:
                     times[oldTime].remove(edge)
-                    times.setdefault(created,[]).append(edge)
+                    times.setdefault(created, []).append(edge)
                     edges[edge] = created
-
 
             # If incoming payment is oldest, adjust time window
             # and prune/evict edges outside window
@@ -133,6 +135,8 @@ def rollingMedian(inFile, outFile):
                         # Evict all edges with this timestamp
                         for e in times[t]:
                             for name in e:
+                                # Get last occurrence of degree # and decrement
+                                # keeping degreeList reverse sorted
                                 i = getLast(degreeList, degrees[name])
                                 degreeList[i] -= 1
                                 degrees[name] -= 1
@@ -142,10 +146,9 @@ def rollingMedian(inFile, outFile):
                             del edges[e]
                         del times[t]
           
-            
             median = getMedian(degreeList)
             outF.write(median+"\n")
-            #writeToOutput(outFile, median)
+            #writeToOutput(outFile, median)  # Uncomment to append to file
 
 
 def usage():
@@ -169,6 +172,4 @@ if __name__ == '__main__':
     except IOError as e:
         print e
         usage()
-
-
 
