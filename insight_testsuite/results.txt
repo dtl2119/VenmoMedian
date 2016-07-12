@@ -1,7 +1,0 @@
-[Mon Jul 11 21:03:01 EDT 2016] 2 of 3 tests passed
-[Mon Jul 11 21:03:33 EDT 2016] 2 of 3 tests passed
-[Mon Jul 11 21:05:13 EDT 2016] 3 of 3 tests passed
-[Mon Jul 11 21:05:25 EDT 2016] 3 of 3 tests passed
-[Mon Jul 11 21:16:06 EDT 2016] 4 of 4 tests passed
-[Mon Jul 11 23:18:18 EDT 2016] 4 of 4 tests passed
-[Mon Jul 11 23:25:47 EDT 2016] 4 of 4 tests passed
