@@ -49,12 +49,11 @@ def getLast(sortedList, item):
     Get index of last occurring item in a sorted list
     Example: getLast([5,5,2,2,2,1], 2) --> 4
     """
-    first = sortedList.index(item)
-    i = first
-    for i in range(first, len(sortedList)-1):
-        if sortedList[i+1] != item:
+    i = len(sortedList) - 1  # Start from end
+    while i > 0:
+        if sortedList[i] == item:
             break
-
+        i -= 1
     return i
 
 
